@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 🔥 INTERNET PERMISSION ADD KI 🔥 -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application android:label="AI PD Measure" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-        <!-- 🔥 Landscape Mode Force Kiya Gaya Hai 🔥 -->
         <activity android:name=".MainActivity" 
             android:exported="true"
             android:screenOrientation="landscape">

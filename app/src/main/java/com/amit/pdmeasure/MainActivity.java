@@ -3,10 +3,13 @@ package com.amit.pdmeasure;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.PointF;
 import android.media.Image;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Base64;
+import android.util.Log;
 import android.util.Size;
 import android.view.View;
 import android.widget.Button;
@@ -24,6 +27,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.face.*;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,12 +45,10 @@ public class MainActivity extends AppCompatActivity {
     private ExecutorService cameraExecutor;
     private FaceDetector faceDetector;
     private ProcessCameraProvider cameraProvider;
+    private ImageCapture imageCapture; // 🔥 Real Photo Capture Ke Liye
     
-    // 🔥 GEMINI API KEY 🔥
     private final String GEMINI_API_KEY = "AIzaSyBcftwdgANQzcO7M4KNfgDVdmBX9Wrsijc";
-    
     private double currentPdMm = 0.0;
-    private float lastFaceWidth = 0f;
     private boolean isProcessingAI = false;
 
     @Override
@@ -73,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 10);
         }
 
-        btnCapture.setOnClickListener(v -> captureAndAnalyzeWithGemini());
+        btnCapture.setOnClickListener(v -> captureRealPhoto());
     }
 
     private void startCamera() {
@@ -88,13 +91,16 @@ public class MainActivity extends AppCompatActivity {
                         .setTargetResolution(new Size(640, 480))
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         .build();
-
                 imageAnalysis.setAnalyzer(cameraExecutor, this::processImageProxy);
 
-                // 🔥 Back Camera Use Kar Rahe Hain 🔥
+                // 🔥 ImageCapture Setup 🔥
+                imageCapture = new ImageCapture.Builder()
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                        .build();
+
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
                 cameraProvider.unbindAll();
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis, imageCapture);
 
             } catch (ExecutionException | InterruptedException e) {
                 e.printStackTrace();
@@ -116,8 +122,8 @@ public class MainActivity extends AppCompatActivity {
                         calculateLivePD(face, imageProxy.getWidth(), viewFinder.getWidth());
                     } else {
                         runOnUiThread(() -> {
-                            tvStatus.setText("No face detected. Align face in frame.");
-                            overlay.updateEyes(null, null, 0, 0); // Clear dots
+                            tvStatus.setText("No face detected.");
+                            overlay.updateEyes(null, null, 0, 0);
                         });
                     }
                 })
@@ -132,58 +138,78 @@ public class MainActivity extends AppCompatActivity {
         PointF rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE) != null ? face.getLandmark(FaceLandmark.RIGHT_EYE).getPosition() : null;
 
         if (leftEye != null && rightEye != null) {
-            // Update Dots on UI
             runOnUiThread(() -> overlay.updateEyes(leftEye, rightEye, imgWidth, viewWidth));
-
             double pixelDistance = Math.sqrt(Math.pow(leftEye.x - rightEye.x, 2) + Math.pow(leftEye.y - rightEye.y, 2));
-            lastFaceWidth = face.getBoundingBox().width();
-            
-            // Standard approximation (Can be enhanced with calibration)
-            double mmPerPixel = 140.0 / lastFaceWidth; 
+            float faceWidthPixels = face.getBoundingBox().width();
+            double mmPerPixel = 140.0 / faceWidthPixels; 
             currentPdMm = pixelDistance * mmPerPixel;
 
             runOnUiThread(() -> {
                 tvPDResult.setText(String.format("%.1f mm", currentPdMm));
-                tvStatus.setText("Live tracking active. Click Capture for AI check.");
+                tvStatus.setText("Live tracking active.");
             });
         }
     }
 
-    private void captureAndAnalyzeWithGemini() {
-        if (currentPdMm == 0.0) {
-            Toast.makeText(this, "Pehle face detect hone do!", Toast.LENGTH_SHORT).show();
+    // 🔥 1. REAL PHOTO CAPTURE LOGIC 🔥
+    private void captureRealPhoto() {
+        if (imageCapture == null || currentPdMm == 0.0) {
+            Toast.makeText(this, "Align face first!", Toast.LENGTH_SHORT).show();
             return;
         }
 
         isProcessingAI = true;
         progressBar.setVisibility(View.VISIBLE);
-        tvStatus.setText("Gemini AI verifying image...");
+        tvStatus.setText("Capturing photo...");
         btnCapture.setEnabled(false);
 
-        // Capture image and process (Simplified simulation)
-        // In a real app, you would take a Photo from ImageCapture usecase here.
-        // For this example, we'll assume we have the last frame's bitmap.
-        // Let's create a dummy bitmap for the API call demo.
-        Bitmap dummyBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
-        
-        callGeminiVisionAPI(dummyBitmap);
+        File photoFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "pd_capture.jpg");
+        ImageCapture.OutputFileOptions outputOptions = new ImageCapture.OutputFileOptions.Builder(photoFile).build();
+
+        imageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(this), 
+            new ImageCapture.OnImageSavedCallback() {
+                @Override
+                public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
+                    tvStatus.setText("AI verifying image...");
+                    // Convert File to Bitmap
+                    try {
+                        FileInputStream fis = new FileInputStream(photoFile);
+                        Bitmap bitmap = BitmapFactory.decodeStream(fis);
+                        callGeminiVisionAPI(bitmap);
+                    } catch (Exception e) {
+                        handleError("File read error: " + e.getMessage());
+                    }
+                }
+
+                @Override
+                public void onError(@NonNull ImageCaptureException exception) {
+                    handleError("Capture failed: " + exception.getMessage());
+                }
+            });
     }
 
+    // 🔥 2. GEMINI API CALL WITH DETAILED ERROR LOGGING 🔥
     private void callGeminiVisionAPI(Bitmap bitmap) {
         new Thread(() -> {
             try {
+                // Scale down image to save bandwidth (Max 800px)
+                int maxSize = 800;
+                if (bitmap.getWidth() > maxSize || bitmap.getHeight() > maxSize) {
+                    float ratio = Math.min((float) maxSize / bitmap.getWidth(), (float) maxSize / bitmap.getHeight());
+                    bitmap = Bitmap.createScaledBitmap(bitmap, (int)(bitmap.getWidth()*ratio), (int)(bitmap.getHeight()*ratio), true);
+                }
+
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
                 String base64Image = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
 
-                // Gemini API Payload
                 JSONObject payload = new JSONObject();
                 JSONArray contents = new JSONArray();
                 JSONObject contentObj = new JSONObject();
                 JSONArray parts = new JSONArray();
                 
                 JSONObject textPart = new JSONObject();
-                textPart.put("text", "Analyze this image. The user might be wearing spectacles. Check if the face is straight and if glasses are reflecting light. Return a JSON response: {\"isFaceStraight\": true, \"hasGlasses\": false, \"accuracyScore\": 95}");
+                textPart.put("text", "Analyze this image. Is the face straight? Are there any reflections on glasses? Reply with short confirmation.");
                 
                 JSONObject imagePart = new JSONObject();
                 JSONObject inlineData = new JSONObject();
@@ -205,9 +231,9 @@ public class MainActivity extends AppCompatActivity {
                         .build();
 
                 Response response = client.newCall(request).execute();
+                String respStr = response.body().string(); // Read full response for error
+
                 if (response.isSuccessful()) {
-                    String respStr = response.body().string();
-                    // Parse the JSON response from Gemini
                     JSONObject respJson = new JSONObject(respStr);
                     String aiText = respJson.getJSONArray("candidates").getJSONObject(0)
                             .getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text");
@@ -216,23 +242,29 @@ public class MainActivity extends AppCompatActivity {
                         isProcessingAI = false;
                         progressBar.setVisibility(View.GONE);
                         btnCapture.setEnabled(true);
-                        tvStatus.setText("AI Verified: " + currentPdMm + " mm");
-                        Toast.makeText(MainActivity.this, "Gemini Verified!", Toast.LENGTH_LONG).show();
+                        tvStatus.setText("✅ AI Verified: " + currentPdMm + " mm");
+                        Toast.makeText(MainActivity.this, "AI: " + aiText, Toast.LENGTH_LONG).show();
                     });
                 } else {
-                    throw new Exception("API Error: " + response.code());
+                    // API Response fail hone par exact error print karo
+                    handleError("API Failed (" + response.code() + "): " + respStr);
                 }
 
             } catch (Exception e) {
-                runOnUiThread(() -> {
-                    isProcessingAI = false;
-                    progressBar.setVisibility(View.GONE);
-                    btnCapture.setEnabled(true);
-                    tvStatus.setText("AI Error. Check network.");
-                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
+                handleError("Exception: " + e.getMessage());
             }
         }).start();
+    }
+
+    private void handleError(String errorMsg) {
+        Log.e("GEMINI_ERROR", errorMsg);
+        runOnUiThread(() -> {
+            isProcessingAI = false;
+            progressBar.setVisibility(View.GONE);
+            btnCapture.setEnabled(true);
+            tvStatus.setText("❌ Error: " + errorMsg); // Screen par error dikhao
+            Toast.makeText(MainActivity.this, errorMsg, Toast.LENGTH_LONG).show();
+        });
     }
 
     @Override
