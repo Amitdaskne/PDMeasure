@@ -3,8 +3,11 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
-    <application android:label="PD Measure" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-        <activity android:name=".MainActivity" android:exported="true">
+    <application android:label="AI PD Measure" android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        <!-- 🔥 Landscape Mode Force Kiya Gaya Hai 🔥 -->
+        <activity android:name=".MainActivity" 
+            android:exported="true"
+            android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

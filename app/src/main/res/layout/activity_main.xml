@@ -1,42 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout 
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Live Camera Preview -->
     <androidx.camera.view.PreviewView
         android:id="@+id/viewFinder"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Face Guide Box (Transparent) -->
-    <View
-        android:layout_width="250dp"
-        android:layout_height="300dp"
-        android:background="@drawable/bg_glass_card"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+    <com.amit.pdmeasure.OverlayView
+        android:id="@+id/overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
     <!-- Glass Panel for Results -->
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="300dp"
         android:layout_height="wrap_content"
-        android:background="#661A1A2E"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:layout_marginEnd="24dp"
+        android:background="#991A1A2E"
         android:orientation="vertical"
-        android:padding="24dp"
-        app:layout_constraintBottom_toBottomOf="parent">
+        android:padding="24dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Pupillary Distance (PD)"
+            android:text="Live PD Result"
             android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold"/>
+            android:textSize="16sp" />
 
         <TextView
             android:id="@+id/tvPDResult"
@@ -44,18 +37,34 @@
             android:layout_height="wrap_content"
             android:text="-- mm"
             android:textColor="#00F0FF"
-            android:textSize="48sp"
-            android:textStyle="bold"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="16dp"/>
+            android:textSize="42sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Align your eyes in the box above."
+            android:text="Align eyes to get live reading."
             android:textColor="#A0A0B0"
-            android:textSize="14sp"/>
+            android:textSize="12sp"
+            android:layout_marginBottom="16dp"/>
+
+        <Button
+            android:id="@+id/btnCapture"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="CAPTURE &amp; AI VERIFY"
+            android:backgroundTint="#E23744"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+            
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
     </LinearLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</RelativeLayout>
