@@ -45,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
     private ExecutorService cameraExecutor;
     private FaceDetector faceDetector;
     private ProcessCameraProvider cameraProvider;
-    private ImageCapture imageCapture; // 🔥 Real Photo Capture Ke Liye
+    private ImageCapture imageCapture;
     
     private final String GEMINI_API_KEY = "AIzaSyBcftwdgANQzcO7M4KNfgDVdmBX9Wrsijc";
     private double currentPdMm = 0.0;
@@ -93,7 +93,6 @@ public class MainActivity extends AppCompatActivity {
                         .build();
                 imageAnalysis.setAnalyzer(cameraExecutor, this::processImageProxy);
 
-                // 🔥 ImageCapture Setup 🔥
                 imageCapture = new ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                         .build();
@@ -151,7 +150,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // 🔥 1. REAL PHOTO CAPTURE LOGIC 🔥
     private void captureRealPhoto() {
         if (imageCapture == null || currentPdMm == 0.0) {
             Toast.makeText(this, "Align face first!", Toast.LENGTH_SHORT).show();
@@ -171,11 +169,10 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
                     tvStatus.setText("AI verifying image...");
-                    // Convert File to Bitmap
                     try {
                         FileInputStream fis = new FileInputStream(photoFile);
                         Bitmap bitmap = BitmapFactory.decodeStream(fis);
-                        callGeminiVisionAPI(bitmap);
+                        callGeminiVisionAPI(bitmap); // Pass original bitmap
                     } catch (Exception e) {
                         handleError("File read error: " + e.getMessage());
                     }
@@ -188,19 +185,21 @@ public class MainActivity extends AppCompatActivity {
             });
     }
 
-    // 🔥 2. GEMINI API CALL WITH DETAILED ERROR LOGGING 🔥
-    private void callGeminiVisionAPI(Bitmap bitmap) {
+    // 🔥 FIXED METHOD: Using copy of Bitmap inside Thread 🔥
+    private void callGeminiVisionAPI(final Bitmap originalBitmap) {
         new Thread(() -> {
             try {
-                // Scale down image to save bandwidth (Max 800px)
+                // Naya variable banaya taaki lambda me reassign na karna pade
+                Bitmap bitmapToSend = originalBitmap;
+                
                 int maxSize = 800;
-                if (bitmap.getWidth() > maxSize || bitmap.getHeight() > maxSize) {
-                    float ratio = Math.min((float) maxSize / bitmap.getWidth(), (float) maxSize / bitmap.getHeight());
-                    bitmap = Bitmap.createScaledBitmap(bitmap, (int)(bitmap.getWidth()*ratio), (int)(bitmap.getHeight()*ratio), true);
+                if (bitmapToSend.getWidth() > maxSize || bitmapToSend.getHeight() > maxSize) {
+                    float ratio = Math.min((float) maxSize / bitmapToSend.getWidth(), (float) maxSize / bitmapToSend.getHeight());
+                    bitmapToSend = Bitmap.createScaledBitmap(bitmapToSend, (int)(bitmapToSend.getWidth()*ratio), (int)(bitmapToSend.getHeight()*ratio), true);
                 }
 
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+                bitmapToSend.compress(Bitmap.CompressFormat.JPEG, 80, baos);
                 String base64Image = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
 
                 JSONObject payload = new JSONObject();
@@ -231,7 +230,7 @@ public class MainActivity extends AppCompatActivity {
                         .build();
 
                 Response response = client.newCall(request).execute();
-                String respStr = response.body().string(); // Read full response for error
+                String respStr = response.body().string();
 
                 if (response.isSuccessful()) {
                     JSONObject respJson = new JSONObject(respStr);
@@ -246,7 +245,6 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(MainActivity.this, "AI: " + aiText, Toast.LENGTH_LONG).show();
                     });
                 } else {
-                    // API Response fail hone par exact error print karo
                     handleError("API Failed (" + response.code() + "): " + respStr);
                 }
 
@@ -262,7 +260,7 @@ public class MainActivity extends AppCompatActivity {
             isProcessingAI = false;
             progressBar.setVisibility(View.GONE);
             btnCapture.setEnabled(true);
-            tvStatus.setText("❌ Error: " + errorMsg); // Screen par error dikhao
+            tvStatus.setText("❌ Error: " + errorMsg);
             Toast.makeText(MainActivity.this, errorMsg, Toast.LENGTH_LONG).show();
         });
     }
