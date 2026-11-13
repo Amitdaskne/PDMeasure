@@ -24,7 +24,7 @@ import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceDetection;
 import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
-import java.util.List;
+import com.google.mlkit.vision.face.FaceLandmark; // 🔥 YE IMPORT MISSING THA 🔥
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
         tvPDResult = findViewById(R.id.tvPDResult);
         tvStatus = findViewById(R.id.tvStatus);
 
-        // Setup ML Kit Face Detector (Fast Mode + Landmarks)
         FaceDetectorOptions options = new FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
                 .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
@@ -114,19 +113,13 @@ public class MainActivity extends AppCompatActivity {
                 face.getLandmark(FaceLandmark.RIGHT_EYE).getPosition() : null;
 
         if (leftEye != null && rightEye != null) {
-            // Calculate pixel distance between eyes
             double pixelDistance = Math.sqrt(Math.pow(leftEye.x - rightEye.x, 2) + Math.pow(leftEye.y - rightEye.y, 2));
             
-            // 🔥 CALIBRATION FACTOR 🔥
-            // Since we don't have depth sensor, we use a standard approximation based on face width.
-            // Average human face width is ~140mm. We use the face bounding box to calculate mm-per-pixel ratio.
             float faceWidthPixels = face.getBoundingBox().width();
             double mmPerPixel = 140.0 / faceWidthPixels; 
 
-            // Final PD in mm
             double pdInMm = pixelDistance * mmPerPixel;
 
-            // Smooth out the reading
             runOnUiThread(() -> {
                 tvPDResult.setText(String.format("%.1f mm", pdInMm));
                 tvStatus.setText("Hold phone steady at arm's length (approx 40cm).");
